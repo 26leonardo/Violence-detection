@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Large / generated artifacts - do not version these
+data/RWF-2000/
+checkpoints/*/
+logs/*/
+!checkpoints/.gitkeep
+!logs/.gitkeep
+
+.DS_Store

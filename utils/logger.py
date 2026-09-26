@@ -1,0 +1,34 @@
+"""Lightweight experiment tracking: TensorBoard scalars plus a JSONL history
+file that is trivial to re-parse for plotting in the notebook."""
+
+import json
+import time
+from pathlib import Path
+from typing import Any, Dict, Union
+
+from torch.utils.tensorboard import SummaryWriter
+
+
+class ExperimentLogger:
+    def __init__(self, log_dir: Union[str, Path], experiment_name: str) -> None:
+        self.log_dir = Path(log_dir) / experiment_name
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+
+        self.writer = SummaryWriter(log_dir=str(self.log_dir))
+        self.history_path = self.log_dir / "history.jsonl"
+        self._history_file = open(self.history_path, "a")
+
+    def log_config(self, config_dict: Dict[str, Any]) -> None:
+        with open(self.log_dir / "config.json", "w") as config_file:
+            json.dump(config_dict, config_file, indent=2)
+
+    def log_epoch(self, epoch: int, metrics: Dict[str, float]) -> None:
+        for key, value in metrics.items():
+            self.writer.add_scalar(key, value, epoch)
+        record = {"epoch": epoch, "timestamp": time.time(), **metrics}
+        self._history_file.write(json.dumps(record) + "\n")
+        self._history_file.flush()
+
+    def close(self) -> None:
+        self.writer.close()
+        self._history_file.close()
