@@ -10,13 +10,19 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class ExperimentLogger:
-    def __init__(self, log_dir: Union[str, Path], experiment_name: str) -> None:
+    def __init__(self, log_dir: Union[str, Path], experiment_name: str, append: bool = False) -> None:
         self.log_dir = Path(log_dir) / experiment_name
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
         self.writer = SummaryWriter(log_dir=str(self.log_dir))
         self.history_path = self.log_dir / "history.jsonl"
-        self._history_file = open(self.history_path, "a")
+        # A *fresh* run (append=False) truncates any stale history left over
+        # from a previous, unrelated run under the same experiment name -
+        # otherwise epoch numbers restart from 0 and get appended after the
+        # previous run's epochs, which plots as a nonsensical sawtooth line.
+        # Only an actual `Trainer(..., resume_from=...)` run should append.
+        mode = "a" if append else "w"
+        self._history_file = open(self.history_path, mode)
 
     def log_config(self, config_dict: Dict[str, Any]) -> None:
         with open(self.log_dir / "config.json", "w") as config_file:

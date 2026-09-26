@@ -3,7 +3,7 @@ checkpointing, and early stopping."""
 
 import time
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -28,6 +28,7 @@ class Trainer:
         val_loader: DataLoader,
         config: Config,
         device: torch.device,
+        resume_from: Optional[str] = None,
     ) -> None:
         self.model = model.to(device)
         self.train_loader = train_loader
@@ -49,13 +50,20 @@ class Trainer:
         self.best_checkpoint_path = experiment_dir / "best.pt"
         self.last_checkpoint_path = experiment_dir / "last.pt"
 
-        self.logger = ExperimentLogger(config.paths.log_dir, config.paths.experiment_name)
+        # append=True only when we are actually resuming a previous run of
+        # THIS SAME experiment_name - see utils.logger for why this matters.
+        self.logger = ExperimentLogger(
+            config.paths.log_dir, config.paths.experiment_name, append=resume_from is not None
+        )
         self.logger.log_config(config.to_dict())
 
         self.start_epoch = 0
         self.best_metric = -float("inf")
         self.epochs_without_improvement = 0
         self._backbone_unfrozen = False
+
+        if resume_from is not None:
+            self.resume(resume_from)
 
     def _unpack_batch(self, batch) -> Tuple[torch.Tensor, torch.Tensor]:
         clips, labels = batch
@@ -74,7 +82,7 @@ class Trainer:
         if epoch < self.config.model.freeze_backbone_epochs:
             return
 
-        self.model.unfreeze_last_stages()
+        self.model.unfreeze_last_stages(self.config.model.unfreeze_num_stages)
         self._backbone_unfrozen = True
         self.optimizer = build_optimizer(self.model, self.config.training)
         self.scheduler = build_scheduler(self.optimizer, self.config.training, len(self.train_loader))
@@ -126,7 +134,7 @@ class Trainer:
         val_loss = running_loss / len(self.val_loader.dataset)
         y_true = np.concatenate(all_labels)
         y_prob = np.concatenate(all_probabilities)
-        metrics = compute_binary_metrics(y_true, y_prob)
+        metrics = compute_binary_metrics(y_true, y_prob, threshold=self.config.training.decision_threshold)
         return val_loss, metrics
 
     def fit(self) -> None:

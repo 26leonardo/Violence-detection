@@ -24,7 +24,7 @@ class DataConfig:
     num_frames: int = 16
     frame_size: int = 224
     val_ratio: float = 0.1
-    num_workers: int = 1
+    num_workers: int = 4
     pin_memory: bool = True
 
 
@@ -41,6 +41,7 @@ class ModelConfig:
     # backbone_transformer only
     pretrained: bool = True
     freeze_backbone_epochs: int = 5
+    unfreeze_num_stages: int = 2  # 1 = only layer4, 2 = layer3+layer4 (more params, more VRAM)
     d_model: int = 256
     n_heads: int = 8
     n_layers: int = 4
@@ -72,7 +73,8 @@ class TrainingConfig:
     focal_alpha: float = 0.25
     mixed_precision: bool = True
     early_stopping_patience: int = 8
-    monitor_metric: str = "f1"
+    monitor_metric: str = "f1"  # any key compute_binary_metrics returns: "f1", "f2", "recall", "roc_auc", ...
+    decision_threshold: float = 0.5  # probability cutoff for reporting metrics/predictions; lower to favor recall
 
 
 @dataclass

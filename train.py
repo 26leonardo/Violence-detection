@@ -31,6 +31,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=None, help="Override the number of training epochs.")
     parser.add_argument("--batch-size", type=int, default=None, help="Override the training batch size.")
     parser.add_argument("--experiment-name", type=str, default=None, help="Override the experiment name.")
+    parser.add_argument(
+        "--monitor-metric", type=str, default=None,
+        help="Metric to track for checkpointing/early stopping, e.g. 'f1', 'f2', 'recall', 'roc_auc'.",
+    )
+    parser.add_argument(
+        "--unfreeze-num-stages", type=int, default=None, choices=[1, 2],
+        help="backbone_transformer only: 1 unfreezes only layer4, 2 unfreezes layer3+layer4 "
+        "(more trainable params, more VRAM). Lower this if you hit CUDA OOM right after unfreezing.",
+    )
     parser.add_argument("--resume", type=str, default=None, help="Path to a checkpoint to resume training from.")
     return parser.parse_args()
 
@@ -44,6 +53,10 @@ def apply_overrides(config: Config, args: argparse.Namespace) -> Config:
         config.training.batch_size = args.batch_size
     if args.experiment_name is not None:
         config.paths.experiment_name = args.experiment_name
+    if args.monitor_metric is not None:
+        config.training.monitor_metric = args.monitor_metric
+    if args.unfreeze_num_stages is not None:
+        config.model.unfreeze_num_stages = args.unfreeze_num_stages
     return config
 
 
@@ -66,9 +79,7 @@ def main() -> None:
     total_params, trainable_params = count_parameters(model)
     print(f"Model parameters -> total: {total_params:,}, trainable: {trainable_params:,}")
 
-    trainer = Trainer(model, train_loader, val_loader, config, device)
-    if args.resume:
-        trainer.resume(args.resume)
+    trainer = Trainer(model, train_loader, val_loader, config, device, resume_from=args.resume)
 
     config_save_path = Path(config.paths.checkpoint_dir) / config.paths.experiment_name / "config.json"
     config.save(config_save_path)
