@@ -5,7 +5,7 @@ __pycache__/
 # Large / generated artifacts - do not version these
 data/RWF-2000/
 checkpoints/*/
-logs/*/
+# logs/*/
 !checkpoints/.gitkeep
 !logs/.gitkeep
 

@@ -1,0 +1,52 @@
+{
+  "data": {
+    "data_root": "./data/RWF-2000",
+    "train_dir": "train",
+    "val_dir": "val",
+    "class_names": [
+      "NonFight",
+      "Fight"
+    ],
+    "num_frames": 16,
+    "frame_size": 112,
+    "val_ratio": 0.1,
+    "num_workers": 1,
+    "pin_memory": true
+  },
+  "model": {
+    "architecture": "lightweight_tsm",
+    "pretrained": false,
+    "freeze_backbone_epochs": 5,
+    "unfreeze_num_stages": 2,
+    "d_model": 256,
+    "n_heads": 8,
+    "n_layers": 4,
+    "ff_dim": 1024,
+    "transformer_dropout": 0.1,
+    "width_mult": 1.0,
+    "classifier_dropout": 0.3
+  },
+  "training": {
+    "seed": 42,
+    "batch_size": 32,
+    "num_epochs": 2,
+    "optimizer": "sgd",
+    "learning_rate": 0.05,
+    "backbone_learning_rate": 1e-05,
+    "weight_decay": 5e-05,
+    "warmup_ratio": 0.05,
+    "grad_clip_norm": 1.0,
+    "loss": "bce",
+    "focal_gamma": 2.0,
+    "focal_alpha": 0.25,
+    "mixed_precision": true,
+    "early_stopping_patience": 8,
+    "monitor_metric": "f1",
+    "decision_threshold": 0.5
+  },
+  "paths": {
+    "experiment_name": "lightweight_tsm",
+    "checkpoint_dir": "./checkpoints",
+    "log_dir": "./logs"
+  }
+}

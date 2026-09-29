@@ -1,0 +1,52 @@
+{
+  "data": {
+    "data_root": "./data/RWF-2000",
+    "train_dir": "train",
+    "val_dir": "val",
+    "class_names": [
+      "NonFight",
+      "Fight"
+    ],
+    "num_frames": 16,
+    "frame_size": 224,
+    "val_ratio": 0.1,
+    "num_workers": 1,
+    "pin_memory": true
+  },
+  "model": {
+    "architecture": "backbone_transformer",
+    "pretrained": true,
+    "freeze_backbone_epochs": 8,
+    "unfreeze_num_stages": 1,
+    "d_model": 256,
+    "n_heads": 8,
+    "n_layers": 4,
+    "ff_dim": 1024,
+    "transformer_dropout": 0.2,
+    "width_mult": 1.0,
+    "classifier_dropout": 0.4
+  },
+  "training": {
+    "seed": 42,
+    "batch_size": 27,
+    "num_epochs": 25,
+    "optimizer": "adamw",
+    "learning_rate": 0.0001,
+    "backbone_learning_rate": 5e-06,
+    "weight_decay": 0.0005,
+    "warmup_ratio": 0.05,
+    "grad_clip_norm": 1.0,
+    "loss": "bce",
+    "focal_gamma": 2.0,
+    "focal_alpha": 0.25,
+    "mixed_precision": true,
+    "early_stopping_patience": 8,
+    "monitor_metric": "f2",
+    "decision_threshold": 0.5
+  },
+  "paths": {
+    "experiment_name": "backbone_transformer",
+    "checkpoint_dir": "./checkpoints",
+    "log_dir": "./logs"
+  }
+}
