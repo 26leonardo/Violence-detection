@@ -85,7 +85,15 @@ class Trainer:
         self.model.unfreeze_last_stages(self.config.model.unfreeze_num_stages)
         self._backbone_unfrozen = True
         self.optimizer = build_optimizer(self.model, self.config.training)
-        self.scheduler = build_scheduler(self.optimizer, self.config.training, len(self.train_loader))
+        # Anneal over the epochs actually remaining, not the full run - a
+        # fresh scheduler built against config.training.num_epochs here would
+        # restart the whole warmup+cosine cycle from step 0, so the LR jumps
+        # back up and never actually reaches its intended low value by the
+        # real final epoch (visible as a repeating LR pattern in the logs).
+        remaining_epochs = self.config.training.num_epochs - epoch
+        self.scheduler = build_scheduler(
+            self.optimizer, self.config.training, len(self.train_loader), num_epochs=remaining_epochs
+        )
         print(f"[epoch {epoch + 1}] Unfroze backbone last stages for fine-tuning.")
 
     def train_one_epoch(self, epoch: int) -> float:
@@ -161,7 +169,8 @@ class Trainer:
             print(
                 f"Epoch {epoch + 1}/{num_epochs} | "
                 f"train_loss={train_loss:.4f} val_loss={val_loss:.4f} "
-                f"val_f1={val_metrics['f1']:.4f} val_auc={val_metrics['roc_auc']:.4f} "
+                f"val_{monitor_metric}={val_metrics[monitor_metric]:.4f} "
+                f"val_recall={val_metrics['recall']:.4f} val_auc={val_metrics['roc_auc']:.4f} "
                 f"time={epoch_duration:.1f}s"
             )
 
