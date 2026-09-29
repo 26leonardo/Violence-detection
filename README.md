@@ -1,8 +1,10 @@
-# Violence Detection in Video - PyTorch Project
+# Violence Detection in Video
 
 Binary video classification (violent vs. non-violent) on the RWF-2000 dataset,
 with two interchangeable architectures. Runs locally on a single consumer GPU
 (developed against an RTX 4060 Ti, 16 GB VRAM) and on Google Colab.
+
+Read `notebooks/experimentation_final.ipynb` for the full experiment and results
 
 ## 1. The problem
 
@@ -76,22 +78,13 @@ Both are selected and configured entirely through `config/config.py` -
 
 ## 3. Training strategy, loss, and metrics
 
-- **Loss:** `nn.BCEWithLogitsLoss` by default (RWF-2000 is balanced). A
-  **binary focal loss** (`training/losses.py`) is available via
-  `config.training.loss = "focal"` for imbalanced generalisation experiments.
-- **Metrics** (`training/metrics.py`): accuracy, precision, recall, F1, and
+- **Loss:** `BCE` by default (RWF-2000 is balanced). 
+- **Metrics** (`training/metrics.py`): accuracy, precision, recall, F1, F2 and
   ROC-AUC - the standard set for a (near-)balanced binary classification
-  task. Regression metrics (MAE/MSE/R²) are intentionally not computed; the
-  target is a label, not a continuous quantity.
+  task. 
 - **Schedule:** linear warmup + cosine decay, stepped every training batch.
-- **Mixed precision:** `torch.amp.autocast` + `torch.amp.GradScaler`, enabled
-  automatically on CUDA and skipped on CPU.
 - **Early stopping:** on the monitored validation metric (F1 by default),
   patience configurable.
-- **Reproducibility:** `utils/seed.py` seeds Python, NumPy, and PyTorch
-  (CPU + all CUDA devices) and sets cuDNN to deterministic mode. See that
-  file's docstring for the (small) set of operations that remain
-  non-deterministic on GPU regardless.
 
 ## 4. Project structure
 
@@ -139,82 +132,6 @@ pip install -r requirements.txt
 %cd /content/violence_detection
 !pip install -q -r requirements.txt
 ```
-Then either `!unzip` a copy of RWF-2000 you've uploaded to Drive into
-`data/RWF-2000/`, or mount Drive and point `--data-root` at it directly:
-```python
-from google.colab import drive
-drive.mount("/content/drive")
-```
-```bash
-!python train.py --architecture lightweight_tsm \
-    --data-root "/content/drive/MyDrive/RWF-2000" \
-    --experiment-name colab_run
-```
 Colab's free-tier GPUs (T4/L4) comfortably fit `lightweight_tsm`; for
 `backbone_transformer` you may need to lower `--batch-size` on a T4.
 
-## 6. Training
-
-```bash
-# Architecture B (fast, from scratch)
-python train.py --architecture lightweight_tsm --data-root ./data/RWF-2000
-
-# Architecture A (fine-tuned backbone)
-python train.py --architecture backbone_transformer --data-root ./data/RWF-2000 --batch-size 8
-
-# Resume a run
-python train.py --config checkpoints/lightweight_tsm/config.json \
-    --resume checkpoints/lightweight_tsm/last.pt
-
-# Common overrides
-python train.py --architecture lightweight_tsm --epochs 50 --batch-size 16 --experiment-name my_run
-```
-Checkpoints go to `checkpoints/<experiment_name>/{best,last}.pt`; TensorBoard
-scalars and a `history.jsonl` go to `logs/<experiment_name>/`.
-```bash
-tensorboard --logdir logs
-```
-
-## 7. Evaluation
-
-```bash
-python evaluate.py --checkpoint checkpoints/lightweight_tsm/best.pt \
-    --output logs/lightweight_tsm/test_metrics.json
-```
-Runs the checkpoint on the held-out test split (`val/` folder) and prints/
-saves accuracy, precision, recall, F1, ROC-AUC, and the confusion matrix.
-
-## 8. Inference
-
-```bash
-python inference.py --checkpoint checkpoints/lightweight_tsm/best.pt --video /path/to/clip.avi
-```
-Or from Python:
-```python
-from inference.predict import ViolenceDetector
-detector = ViolenceDetector("checkpoints/lightweight_tsm/best.pt")
-print(detector.predict("/path/to/clip.avi"))
-```
-
-## 9. Notebook
-
-`notebooks/experimentation.ipynb` covers setup, EDA, sample visualisation,
-training, curve plotting, error analysis, final evaluation, checkpoint
-reloading, and inference examples - all by importing the `.py` modules above,
-never duplicating their logic. Open it locally with the venv's kernel, or
-upload it to Colab after cloning the repo there (see §5).
-
-## 10. Common failure cases and debugging
-
-| Symptom | Likely cause / fix |
-|---|---|
-| `FileNotFoundError: Expected split directory not found` | `--data-root` doesn't point at the folder containing `train/` and `val/`. Check the path. |
-| `RuntimeError: No video files found under ...` | RWF-2000 archive extracted with a different folder/casing (e.g. `Fight` vs `fight`). Rename to match `config.data.class_names`, or edit that field. |
-| `IOError: Cannot open video file` | Corrupted download or unsupported codec. Re-download the file, or verify `opencv-python-headless` (not the GUI `opencv-python`) is installed. |
-| `CUDA out of memory` | Lower `--batch-size`, or for `backbone_transformer` keep the backbone frozen longer (raise `freeze_backbone_epochs`), or lower `config.data.frame_size`. |
-| Training loss stuck / NaN | Check `grad_clip_norm > 0` is active; for `backbone_transformer`, confirm frozen BatchNorm layers stayed in eval mode (this is handled automatically by the model's `train()` override - don't call `model.backbone.train()` directly). |
-| `roc_auc: NaN` in a metrics dict | The evaluated set contained only one class (e.g. a tiny custom test set) - ROC-AUC is undefined in that case; accuracy/F1 are still valid. |
-| Notebook `ModuleNotFoundError` for project packages | The "Project setup" cell didn't find the repo root - edit `PROJECT_ROOT` in that cell to the actual clone location. |
-| Colab session disconnects mid-training | Re-launch and pass `--resume checkpoints/<exp>/last.pt` to continue from the last completed epoch. |
-| `UserWarning: enable_nested_tensor is True, but ...norm_first was True` | Harmless PyTorch informational warning from the pre-norm Transformer encoder; safe to ignore. |
-| Very slow data loading | Video decoding is CPU-bound; raise `config.data.num_workers` up to your CPU's core count (e.g. 8 for a Ryzen 7800X3D), and make sure `pin_memory=True` when training on GPU. |
