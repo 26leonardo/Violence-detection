@@ -86,23 +86,33 @@ class BackboneTransformerNet(nn.Module):
             parameter.requires_grad = False
         self._frozen_bn_modules = [m for m in self.backbone.modules() if isinstance(m, nn.BatchNorm2d)]
 
-    def unfreeze_last_stages(self, num_stages: int = 2) -> None:
-        """Unfreezes `layer4` (num_stages=1) or `layer3` + `layer4` (num_stages=2)
-        for a second fine-tuning phase with a lower learning rate."""
+    def unfreeze_last_stages(self, num_stages: int = 2, freeze_bn_stats: bool = False) -> None:
+       """Unfreezes `layer4` (num_stages=1) or `layer3` + `layer4` (num_stages=2)
+       for a second fine-tuning phase with a lower learning rate.
 
-        if self._backbone_unfrozen:
-            return
-        stage_indices = {1: [7], 2: [6, 7]}.get(num_stages)
-        if stage_indices is None:
-            raise ValueError("num_stages must be 1 or 2.")
+       `freeze_bn_stats`: when True, the BatchNorm layers inside the newly
+       unfrozen stages stay pinned in eval mode (like the still-frozen stages),
+       so their running mean/var keep the ImageNet statistics instead of being
+       updated from small fine-tuning batches. Their affine weight/bias still
+       get gradients and are still trained, since only `requires_grad` controls
+       that, not train/eval mode. When False (default), behaviour is unchanged
+       from before this option existed.
+       """
 
-        for stage_index in stage_indices:
-            stage_module = self.backbone[stage_index]
-            for parameter in stage_module.parameters():
-                parameter.requires_grad = True
-            stage_bn_modules = [m for m in stage_module.modules() if isinstance(m, nn.BatchNorm2d)]
-            self._frozen_bn_modules = [m for m in self._frozen_bn_modules if m not in stage_bn_modules]
-        self._backbone_unfrozen = True
+       if self._backbone_unfrozen:
+           return
+       stage_indices = {1: [7], 2: [6, 7]}.get(num_stages)
+       if stage_indices is None:
+           raise ValueError("num_stages must be 1 or 2.")
+
+       for stage_index in stage_indices:
+           stage_module = self.backbone[stage_index]
+           for parameter in stage_module.parameters():
+               parameter.requires_grad = True
+           if not freeze_bn_stats:
+               stage_bn_modules = [m for m in stage_module.modules() if isinstance(m, nn.BatchNorm2d)]
+               self._frozen_bn_modules = [m for m in self._frozen_bn_modules if m not in stage_bn_modules]
+       self._backbone_unfrozen = True
 
     def train(self, mode: bool = True) -> "BackboneTransformerNet":
         super().train(mode)

@@ -47,6 +47,10 @@ class ModelConfig:
     n_layers: int = 4
     ff_dim: int = 1024
     transformer_dropout: float = 0.1
+    # Keeps BatchNorm running mean/var frozen at their pretrained values even after
+    # unfreeze_last_stages() makes the conv weights trainable again. The BN affine
+    # weight/bias still receive gradients; only the running statistics stay fixed.
+    freeze_bn_stats_after_unfreeze: bool = False
 
     # lightweight_tsm only
     width_mult: float = 1.0

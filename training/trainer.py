@@ -82,7 +82,10 @@ class Trainer:
         if epoch < self.config.model.freeze_backbone_epochs:
             return
 
-        self.model.unfreeze_last_stages(self.config.model.unfreeze_num_stages)
+        self.model.unfreeze_last_stages(
+            self.config.model.unfreeze_num_stages,
+            freeze_bn_stats=self.config.model.freeze_bn_stats_after_unfreeze,
+        )
         self._backbone_unfrozen = True
         self.optimizer = build_optimizer(self.model, self.config.training)
         # Anneal over the epochs actually remaining, not the full run - a

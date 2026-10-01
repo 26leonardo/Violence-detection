@@ -4,7 +4,9 @@ Binary video classification (violent vs. non-violent) on the RWF-2000 dataset,
 with two interchangeable architectures. Runs locally on a single consumer GPU
 (developed against an RTX 4060 Ti, 16 GB VRAM) and on Google Colab.
 
-Read `notebooks/experimentation_final.ipynb` for the full experiment and results
+Read `notebooks/experimentation_final.ipynb` for the full experiment and
+results; `notebooks/overfit_experiments.ipynb` has the full overnight sweep
+that fixed `backbone_transformer`'s overfitting (see Results below).
 
 ## 1. The problem
 
@@ -49,11 +51,17 @@ a single logit.
   last `unfreeze_num_stages` ResNet stages (`layer4` only, or `layer3` and
   `layer4`) are unfrozen and the optimizer is rebuilt with a second,
   lower-learning-rate parameter group for them (discriminative fine-tuning).
-  The final reported run used `unfreeze_num_stages = 1` (`layer4` only).
+  The final reported run unfreezes `layer4` only (`unfreeze_num_stages = 1`),
+  delayed to epoch 13, and keeps its BatchNorm running statistics frozen at
+  their pretrained values for the rest of training
+  (`freeze_bn_stats_after_unfreeze = True`), a setup reached only after a
+  dedicated overnight sweep to fix overfitting in the original setup (see
+  Results below and the notebook's ablation section).
 - **Optimizer:** AdamW - weight decay is decoupled from the gradient moments,
   applied directly to the weights.
 - **Best for:** highest accuracy ceiling, given enough VRAM/time (the final
-  reported run used 224×224 frames, batch size 15).
+  reported run uses 224x224 frames, 8 per clip, batch size 15, and a reduced
+  Transformer: 1 layer, `d_model = 64`).
 
 ### Architecture B - `lightweight_tsm` (from-scratch, efficient)
 
@@ -138,3 +146,33 @@ pip install -r requirements.txt
 ```
 Colab's free-tier GPUs (T4/L4) comfortably fit `lightweight_tsm`; for
 `backbone_transformer` you may need to lower `--batch-size` on a T4.
+
+## 6. Results (final models, test set)
+
+At the default 0.5 threshold, seed 42:
+
+| model | accuracy | precision | recall | F1 | F2 | ROC-AUC |
+|---|---|---|---|---|---|---|
+| `lightweight_tsm` (run1c) | 0.8225 | 0.8342 | 0.8050 | 0.8193 | 0.8107 | 0.894 |
+| `backbone_transformer` (C18) | 0.8250 | 0.8155 | 0.8400 | 0.8276 | 0.8350 | 0.903 |
+
+Recall is the metric this project weighs most (a missed fight costs more
+than a false alarm): `backbone_transformer` leads on it here, with
+`lightweight_tsm` close behind; the two are within a point of each other on
+F1 and ROC-AUC.
+
+Threshold tuned on validation for 0.95 target recall, applied to test:
+
+| model | threshold | precision | recall | F1 |
+|---|---|---|---|---|
+| `lightweight_tsm` | 0.519 | 0.8360 | 0.7900 | 0.8123 |
+| `backbone_transformer` | 0.281 | 0.7699 | 0.9200 | 0.8383 |
+
+**Caveat:** `lightweight_tsm`'s numbers above are confirmed stable across two
+random seeds (within about a point on every metric). `backbone_transformer`'s
+current config (`C18`) is the result of a dedicated overnight sweep that fixed
+severe overfitting in its original setup, but has only been run with one
+seed so far; its original setup looked just as solid on one seed and then
+lost 6 points of recall on a second. Read its recall lead above as
+provisional until it is re-seeded, full discussion in the notebook's
+Conclusions.
